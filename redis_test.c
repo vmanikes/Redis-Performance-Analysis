@@ -11,8 +11,8 @@ int32_t convert_hex(long);
 #define  PORT_CNT   50000
 #define  IP_CNT     10
 
-uint16_t arrLPort[PORT_CNT][IP_CNT];
-uint16_t arrRPort[PORT_CNT][IP_CNT];
+uint16_t arrLPort[IP_CNT][PORT_CNT];
+uint16_t arrRPort[IP_CNT][PORT_CNT];
 uint32_t ndxLPort[IP_CNT];
 uint32_t ndxRPort[IP_CNT];
 uint32_t arrLip[IP_CNT]={0x0A0A0A0A,0x0A0A0A0B,0x0A0A0B0B,0x0A0B0B0B,0x0B0B0B0B,0x0B0B0B0C,0x0B0B0C0C,0x0B0C0C0C,0x0C0C0C0C,0x0C0C0C0D};
@@ -29,17 +29,19 @@ int genkey(char* key)
 	uint16_t  lport;
 	uint16_t  rport;
 	int ndx;
+	int ndxIp;
 	//Select Random IP
-    ndx = random()%10;
-    lip = arrLip[ndx];
-    ndx = random()%10;
-    rip = arrRip[ndx];
-    ndx = random()%ndxLPort;
-    lport = arrLPort[ndx];
-    arrLPort[ndx] = arrLPort[--ndxLPort];
-    ndx = random()%ndxRPort;
-    rport = arrRPort[ndx];
-    arrRPort[ndx] = arrRPort[--ndxRPort];
+    ndxIp = random() % IP_CNT;
+    lip = arrLip[ndxIp];
+    ndx = random()%ndxLPort[ndxIp];
+    lport = arrLPort[ndxIp][ndx];
+    arrLPort[ndxIp][ndx] = arrLPort[ndxIp][--ndxLPort[ndxIp]];
+ 
+    ndxIp = random() % IP_CNT;
+    rip = arrRip[ndxIp];
+    ndx = random() % ndxRPort[ndxIp];
+    rport = arrRPort[ndxIp][ndx];
+    arrRPort[ndxIp][ndx] = arrRPort[ndxIp][--ndxRPort[ndxIp]];
     snprintf(key, 25, "%08lX%08lX%04hX%04hX", lip, rip, lport, rport);  
     return 0;
 }
@@ -70,43 +72,31 @@ void main(){
     printf("PING: %s\n",reply->str);
     freeReplyObject(reply);
 
-	for( i=0; i<PORT_CNT; i++){
-		for(j=0;j<IP_CNT;j++){
-			arrLPort[i][j] = holder;
-			arrRPort[i][j] = holder;
+	for( i=0; i<IP_CNT; i++){
+		for(j=0;j<PORT_CNT;j++){
+			arrLPort[i][j] = 10000+j;
+			arrRPort[i][j] = 10000+j;
 		}
-		holder++;
+		ndxLPort[i] = PORT_CNT;
+		ndxRPort[i] = PORT_CNT;
 	}
 
-	for( i=0; i<PORT_CNT; i++){
-		for(j=0;j<IP_CNT;j++){
-			printf("%d\t",arrLPort[i][j]);
-		}
-		printf("\n");
-	}
-	ndxLPort = PORT_CNT;
-	ndxRPort = PORT_CNT;
 	//50k values are now stored
 	begin=clock();
-	for( j = 0; j < 100; j++ )
+	
+	//
+	for( j = 0; j < 100000; j++ )
 	{
 		genkey( key );
 		strcpy( data, key );
-		printf("%s\n", key );
+		
 
 		//send to REDIS
 		reply=redisCommand(c,"SET  %s %s",key,data); //Redis set
         freeReplyObject(reply);
-       reply=redisCommand(c,"GET  %s",key); //Redis get
-
-        if( strcmp(key,reply->str) == 0 ){
-        	fprintf(f,"success %s: %s\n",key,reply->str);
-        }
-        else{
-          	printf("failure");
-        	perror("err");      	
-        }
 	}
+
+	// 
 }
 
 
